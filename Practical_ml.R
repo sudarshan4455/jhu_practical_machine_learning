@@ -1,0 +1,128 @@
+library(RCurl)
+library(caret)
+library(corrplot)
+library(ggplot2)
+library(doMC)
+
+##Getting Data
+# URL of the training and testing data
+train.url ="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+test.url = "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+x <- getURL(train.url, ssl.verifypeer = FALSE)
+y<- getURL(test.url, ssl.verifypeer = FALSE)
+train <- read.csv(textConnection(x))
+test <- read.csv(textConnection(y))
+dim(train)
+dim(test)
+
+
+#Replace NA values with 999
+test[is.na(test)]<-999
+train[is.na(train)] <- 999
+
+
+#Removing columns which has Id and Timestamp columns from both train and test
+train$X <- NULL
+train$user_name <-NULL
+train$raw_timestamp_part_1 <-NULL
+train$raw_timestamp_part_2 <- NULL
+train$cvtd_timestamp <- NULL
+
+test$X <- NULL
+test$user_name <-NULL
+test$raw_timestamp_part_1 <-NULL
+test$raw_timestamp_part_2 <- NULL
+test$cvtd_timestamp <- NULL
+
+
+#Checking the factor levels in classe
+str(train$classe)
+levels(train$classe)
+
+
+
+#Assigning classe to outcome
+outcome <- train[,"classe"]
+
+
+#Remove 'classe' column from train
+train$classe <- NULL
+
+
+##Preprocessing
+#Check for Near Zero Variance
+nzv.train = nearZeroVar(train, saveMetrics=TRUE)
+nzv.train$nzv
+
+
+#Removing the columns which has Near Zero Variance(nzv) is TRUE from both train and test data sets
+train_new <- train[c(rownames(nzv.train[nzv.train$nzv ==FALSE,]))]
+test_new <- test[c(rownames(nzv.train[nzv.train$nzv ==FALSE,]))]
+
+
+##Plot of relationship between features and outcome
+#Plot the relationship between features and outcome. From the plot below, each features has relatively the same distribution among the 5 outcome levels (A, B, C, D, E).
+featurePlot(train_new,outcome, "strip")
+
+
+#combining outcome with train_new dataset
+train_combined <- cbind(train_new,outcome)
+
+
+## set random seed, for reproducibility 
+set.seed(1234)
+
+##Splitting the training data into train and validation data sets
+inTrain <- createDataPartition(y=train_combined$outcome,p=0.8, list=FALSE)
+trainData <- train_combined[inTrain,]
+validationData <- train_combined[-inTrain,]
+
+## set my cores 
+registerDoMC(cores = 8)
+
+
+##Model Building
+#From repeated Cross-Validation,got the best tune parameters for n.trees,
+#interaction.depth and shrinkage.
+
+#fitcontrol <- trainControl(method = 'repeatedcv',number = 5,repeats = 3)
+fitcontrol <- trainControl(method = "none")
+gbmmodel <- train(outcome ~.,data = trainData,trControl = fitcontrol,
+                  tuneGrid = expand.grid(n.trees = 150,
+                                         interaction.depth = 3,shrinkage = 0.1),
+                  method = 'gbm',metric="Kappa")
+##Top 20 features
+gbmImp <- varImp(gbmmodel,scale = FALSE)
+plot(gbmImp,top =20)
+
+
+##Predictions
+predictions <- predict(object = gbmmodel,validationData)
+
+
+##Cross-validation
+confusionMatrix(validationData$outcome,predictions)
+
+##Out Of Bag Error Rate
+#The model achieved an accuracy of 99.11% from 
+#Cross validation of Validation Data set which indicates the Out of Bag error rate 0.89%(1 - 99.11%)
+
+##Final Model Testing
+results <- predict(gbmmodel,newdata=test_new)
+#print(as.data.frame(results))
+
+
+##Submission
+#Write submission files to predictionAssignment_files/answers.
+path = "/Users/Siddhu/Desktop/jhu_coursera/jhu_practical_machine_learning/output/"
+pml_write_files = function(x) {
+  n = length(x)
+  for(i in 1: n) {
+    filename = paste0("problem_id_", i, ".txt")
+    write.table(x[i], file=file.path(path, filename), 
+                quote=FALSE, row.names=FALSE, col.names=FALSE)
+  }
+}
+pml_write_files(results)
+

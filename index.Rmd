@@ -5,11 +5,11 @@ date: "December 27,2015"
 output: html_document
 ---
 
-## Background
+##Background
+Quantified Self devices are becoming more and more common, and are able to collect a large amount of data about people and their personal health activities. The focus of this project is to utilize some sample data on the quality of certain exercises to predict the manner in which they did the exercise.
 
-Using devices such as JawboneUp, NikeFuelBand, and Fitbitit is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
-
-In this project, the goal is to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+##Analysis
+This analysis will build a machine learning model from the sample data that is attempting to most accurately predict the manner in which the exercise was performed. This is a classification problem into discrete categories, which in the training data are located in the ‘classe’ varaible.
 
 ## Preparing the data
 Load packages, set caching
@@ -38,13 +38,13 @@ dim(train)
 dim(test)
 ```
 
-##Replace NA values with 999
+Replace NA values with 999
 ```{r}
 test[is.na(test)]<-999
 train[is.na(train)] <- 999
 ```
 
-##Removing columns which has Id and Timestamp columns from both train and test
+Removing columns which has Id and Timestamp columns from both train and test
 ```{r}
 train$X <- NULL
 train$user_name <-NULL
@@ -59,31 +59,31 @@ test$raw_timestamp_part_2 <- NULL
 test$cvtd_timestamp <- NULL
 ```
 
-##Checking the factor levels in classe
+Checking the factor levels in classe
 ```{r}
 str(train$classe)
 levels(train$classe)
 ```
 
 
-##Assigning classe to outcome
+Assigning classe to outcome
 ```{r}
 outcome <- train[,"classe"]
 ```
 
-##Remove 'classe' from train
+Remove 'classe' column from train
 ```{r}
 train$classe <- NULL
 ```
 
 ##Preprocessing
-####Check for Zero Variance
+Check for Near Zero Variance
 ```{r}
 nzv.train = nearZeroVar(train, saveMetrics=TRUE)
 nzv.train$nzv
 ```
 
-##Removing the columns which has Near Zero Variance(nzv) is TRUE from both train and test data sets
+Removing the columns which has Near Zero Variance(nzv) is TRUE from both train and test data sets
 ```{r}
 train_new <- train[c(rownames(nzv.train[nzv.train$nzv ==FALSE,]))]
 test_new <- test[c(rownames(nzv.train[nzv.train$nzv ==FALSE,]))]
@@ -92,22 +92,11 @@ test_new <- test[c(rownames(nzv.train[nzv.train$nzv ==FALSE,]))]
 ##Plot of relationship between features and outcome
 Plot the relationship between features and outcome. From the plot below, each features has relatively the same distribution among the 5 outcome levels (A, B, C, D, E).
 
-
 ```{r}
 featurePlot(train_new,outcome, "strip")
 ```
 
-
-##Plot of correlation matrix
-Plot a correlation matrix between features.
-A good set of features is when they are highly uncorrelated (orthogonal) each others. The plot below shows average of correlation is not too high, so I choose to not perform further PCA preprocessing.
-
-```{r}
-corrplot.mixed(cor(train_new), lower="circle", upper="color", 
-               tl.pos="lt", diag="n", order="hclust", hclust.method="complete")
-```
-
-## combining outcome with train_new dataset
+combining outcome with train_new dataset
 ```{r}
 train_combined <- cbind(train_new,outcome)
 ```
@@ -117,19 +106,22 @@ train_combined <- cbind(train_new,outcome)
 set.seed(1234)
 ```
 
-##Data Splitting
+##Splitting the training data into train and validation data sets
 ```{r}
 inTrain <- createDataPartition(y=train_combined$outcome,p=0.8, list=FALSE)
 trainData <- train_combined[inTrain,]
 validationData <- train_combined[-inTrain,]
 ```
 
+
 ```{r}
 ## set my cores 
 registerDoMC(cores = 8)
 ```
 
-## Model Building
+##Model Building
+From repeated Cross-Validation,got the best tune parameters for n.trees,interaction.depth and shrinkage.
+
 ```{r}
 #fitcontrol <- trainControl(method = 'repeatedcv',number = 5,repeats = 3)
 fitcontrol <- trainControl(method = "none")
@@ -138,7 +130,6 @@ gbmmodel <- train(outcome ~.,data = trainData,trControl = fitcontrol,
                                          interaction.depth = 3,shrinkage = 0.1),
                                          method = 'gbm',metric="Kappa")
 ```
-
 ##Top 20 features
 ```{r}
 gbmImp <- varImp(gbmmodel,scale = FALSE)
@@ -155,12 +146,28 @@ predictions <- predict(object = gbmmodel,validationData)
 confusionMatrix(validationData$outcome,predictions)
 ```
 
+##Out Of Bag Error Rate
+The model achieved an accuracy of 99.11% from Cross validation of Validation Data set which indicates the Out of Bag error rate 0.89%
+
 ##Final Model Testing
 ```{r}
 results <- predict(gbmmodel,newdata=test_new)
-print(as.data.frame(results))
+#print(as.data.frame(results))
 ```
 
-##Submission to Coursera
+##Submission
 Write submission files to predictionAssignment_files/answers.
+
+```{r}
+path = "/Users/Siddhu/Desktop/jhu_coursera/jhu_practical_machine_learning/output/"
+pml_write_files = function(x) {
+  n = length(x)
+  for(i in 1: n) {
+    filename = paste0("problem_id_", i, ".txt")
+    write.table(x[i], file=file.path(path, filename), 
+                quote=FALSE, row.names=FALSE, col.names=FALSE)
+  }
+}
+pml_write_files(results)
+```
 
