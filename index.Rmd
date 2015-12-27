@@ -1,7 +1,7 @@
 ---
 title: "Practical Machine Learning"
 author: "Sudarshan Dodda"
-date: "December 26,2015"
+date: "December 27,2015"
 output: html_document
 ---
 
@@ -160,3 +160,7 @@ confusionMatrix(validationData$outcome,predictions)
 results <- predict(gbmmodel,newdata=test_new)
 print(as.data.frame(results))
 ```
+
+##Submission to Coursera
+Write submission files to predictionAssignment_files/answers.
+

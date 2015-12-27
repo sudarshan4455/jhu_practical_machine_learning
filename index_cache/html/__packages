@@ -1,0 +1,13 @@
+base
+bitops
+RCurl
+lattice
+ggplot2
+caret
+corrplot
+foreach
+iterators
+doMC
+survival
+gbm
+plyr
